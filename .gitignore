@@ -1,0 +1,38 @@
+# --- Dependencies (npm install) ---
+node_modules/
+
+# --- Local scratch: intermediate outputs, tests, notes (not part of the repo) ---
+.local/
+
+# --- Build ---
+# dist/client.js is committed ON PURPOSE: Camunda Modeler loads it directly,
+# so the repo can be copied/cloned into resources/plugins without a build.
+# Only source maps from `npm run dev` are ignored.
+dist/*.map
+
+# Packaged plugin archives
+*.zip
+*.tgz
+
+# --- Logs & caches ---
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.eslintcache
+
+# --- Environment ---
+.env
+.env.*
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Editors / IDEs ---
+.vscode/
+.idea/
+*.swp
+*~

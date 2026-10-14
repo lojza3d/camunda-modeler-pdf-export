@@ -1,0 +1,20 @@
+.pdf-export-button {
+  gap: 6px;
+}
+
+.pdf-export-button__label {
+  font-variant-numeric: tabular-nums;
+}
+
+.pdf-export-button--busy {
+  cursor: progress !important;
+}
+
+.pdf-export-button--busy .pdf-export-button__icon {
+  animation: pdf-export-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pdf-export-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.3; }
+}
