@@ -121,7 +121,8 @@ export class PdfBuilder {
     doc.setLineWidth(0.2);
     doc.line(margin, separatorY, this.pageWidth - margin, separatorY);
 
-    // diagram as vector graphics, horizontally centered below the title
+    // diagram as vector graphics, centered (both axes) in the area
+    // between the title and the footer
     if (diagram) {
 
       // svg2pdf only switches the font style when it differs from its own
@@ -130,7 +131,7 @@ export class PdfBuilder {
 
       await svg2pdf(diagram.svg, doc, {
         x: area.x + (area.width - diagram.widthMm) / 2,
-        y: area.y,
+        y: area.y + (area.height - diagram.heightMm) / 2,
         width: diagram.widthMm,
         height: diagram.heightMm
       });
