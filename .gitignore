@@ -10,7 +10,8 @@ node_modules/
 # Only source maps from `npm run dev` are ignored.
 dist/*.map
 
-# Packaged plugin archives
+# Packaged plugin archives (npm run package -> release/)
+release/
 *.zip
 *.tgz
 

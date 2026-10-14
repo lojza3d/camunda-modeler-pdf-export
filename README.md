@@ -23,7 +23,12 @@ Works for both Camunda 7 (`bpmn`) and Camunda 8 (`cloud-bpmn`) tabs. Verified ag
 
 ## Installation
 
-Copy the whole `camunda-modeler-pdf-export` folder (`index.js`, `dist/` and `style/` are sufficient) to:
+Download `camunda-modeler-pdf-export-vX.Y.Z.zip` from the latest
+[release](../../releases/latest) and unzip it into the plugins folder below – the zip already
+contains the `camunda-modeler-pdf-export` folder with everything needed (`index.js`, `dist/`, `style/`).
+No build required.
+
+Alternatively copy the `camunda-modeler-pdf-export` folder from this repo (`index.js`, `dist/` and `style/` are sufficient) to:
 
 | OS      | path |
 |---------|------|
@@ -42,7 +47,18 @@ To check that the plugin was loaded: F12 → console → `window.plugins` lists 
 npm install
 npm run build   # production bundle to dist/client.js
 npm run dev     # watch mode; in the Modeler press F12 → Cmd/Ctrl+R to reload the plugin
+npm run package # build + release/camunda-modeler-pdf-export-v<version>.zip
 ```
+
+## Releasing
+
+1. Bump `version` in `package.json`, run `npm run build`, commit and push.
+2. GitHub → Releases → *Create a new release* → new tag `v<version>` (must match `package.json`) → *Publish*.
+3. The workflow `.github/workflows/release.yml` builds the plugin and attaches
+   `camunda-modeler-pdf-export-v<version>.zip` to the release (Actions tab shows progress).
+
+Without the workflow: run `npm run package` locally and drag the zip from `release/`
+into *Attach binaries* of the release form.
 
 All settings live in `client/config.js` (page format, margins, title size, `shrinkOnly`,
 `textToCurves`, UI texts). Page order: `client/export/collectPages.js`
