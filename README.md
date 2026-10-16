@@ -2,12 +2,20 @@
 
 Adds a **PDF** button to the bottom status bar of BPMN tabs. The export creates a PDF
 (A4 landscape) where each page = title + diagram as **vector graphics** (shrink-to-fit,
-stays sharp when zoomed or printed on A3; diagram labels are converted to outlines):
+centered, stays sharp when zoomed or printed on A3; diagram labels are converted to outlines).
 
-1. the diagram currently open in the editor,
-2. its collapsed subprocesses – left to right, then top to bottom,
-3. their collapsed subprocesses (next level), grouped by parent in page order,
-4. … down to the N-th level (breadth-first traversal).
+Clicking the button opens the **Export as PDF** dialog right above it:
+
+- **Current diagram only** – one page with the diagram currently open in the editor.
+- **Current diagram and subdiagrams** – the open diagram followed by
+  1. its collapsed subprocesses – left to right, then top to bottom,
+  2. their collapsed subprocesses (next level), grouped by parent in page order,
+  3. … down to the N-th level (breadth-first traversal).
+- **Mark subprocesses with diagrams** – draws the Modeler's blue drill-down arrow next to
+  every collapsed subprocess whose diagram is not empty (same position and colors as in the editor).
+
+*Export* (or Enter) asks where to save the PDF, *Cancel* (or Escape) closes the dialog.
+The last used choices are remembered.
 
 With the main diagram open, the whole model is exported. With a subprocess open
 (drilled down), the export starts with that subprocess and contains only its
@@ -19,7 +27,7 @@ always the full path from the main diagram, also when exporting a subtree).
 Also distinguishes `event subprocess`, `transaction` and `ad-hoc subprocess`.
 The PDF has hierarchical bookmarks and a footer `model_name … 3 / 12`.
 
-Works for both Camunda 7 (`bpmn`) and Camunda 8 (`cloud-bpmn`) tabs. Verified against Modeler 5.52 / bpmn-js 18.
+Works for both Camunda 7 (`bpmn`) and Camunda 8 (`cloud-bpmn`) tabs. Verified in Camunda Modeler 5.44 and 5.52.
 
 ## Installation
 
@@ -61,7 +69,7 @@ Without the workflow: run `npm run package` locally and drag the zip from `relea
 into *Attach binaries* of the release form.
 
 All settings live in `client/config.js` (page format, margins, title size, `shrinkOnly`,
-`textToCurves`, UI texts). Page order: `client/export/collectPages.js`
+`textToCurves`, drill-down marker colors, initial dialog choices, UI texts). Page order: `client/export/collectPages.js`
 (functions `byPosition`, `describeSubProcess`).
 
 ## How it works
@@ -70,11 +78,14 @@ All settings live in `client/config.js` (page format, margins, title size, `shri
   subscribes to the `bpmn.modeler.created` event (bpmn-js instance for each tab) and
   `app.activeTabChanged`; saves via `_getGlobal('dialog').showSaveFileDialog`
   and `_getGlobal('fileSystem').writeFile(..., { encoding: 'base64' })`.
+- `client/ExportOverlay.js` – the export dialog, built from the Modeler's own `Overlay` and
+  `Section` components and form/button styles (like the Deploy dialog).
 - `client/export/collectPages.js` – in bpmn-js every collapsed subprocess has its own
   plane (`<id>_plane`); BFS over the planes, starting at the plane currently open.
 - `client/export/exportPdf.js` – switches `canvas.setRootElement(plane)`, calls
   `modeler.saveSVG()`, and right after that restores the original plane, viewbox and selection.
-- `client/export/svgPrepare.js` – removes diagram-js helpers (hit areas, outlines), fixes
+- `client/export/svgPrepare.js` – removes diagram-js helpers (hit areas, outlines), adds the
+  drill-down markers (the editor shows them as HTML overlays, which are not part of the SVG), fixes
   svg2pdf quirks and converts all text to outlines with [opentype.js](https://github.com/opentypejs/opentype.js)
   using Arimo (metric-compatible with Arial, which bpmn-js uses to lay out labels).
   With `textToCurves: false` the labels stay real text (selectable/searchable) in the embedded Arimo font.

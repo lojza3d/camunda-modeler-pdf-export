@@ -3,8 +3,8 @@ import { prepareSvg, getSvgSize, PX_TO_MM } from './svgPrepare';
 import { PdfBuilder } from './pdf';
 
 /**
- * Renders the diagram currently open in the editor and all collapsed
- * subprocesses below it (any depth) into a PDF with vector graphics.
+ * Renders the diagram currently open in the editor – optionally with all
+ * collapsed subprocesses below it (any depth) – into a PDF with vector graphics.
  * Main diagram open = whole model; subprocess open = that subtree only.
  *
  * Phase 1: the canvas is switched through all planes to grab their SVG and
@@ -17,17 +17,35 @@ import { PdfBuilder } from './pdf';
  * @param {Object} options
  * @param {string} options.modelName
  * @param {Object} options.config - see ../config.js
+ * @param {boolean} [options.includeSubProcesses=true] - false = current diagram only
+ * @param {boolean} [options.markSubProcesses=false] - draw the blue drill-down
+ *   arrow next to collapsed subprocesses that contain a diagram
  * @param {(done: number, total: number) => void} [options.onProgress]
  *
  * @return {Promise<{ base64: string, pageCount: number, titles: string[] }>}
  */
-export async function exportToPdf(bpmnjs, { modelName, config, onProgress = () => {} }) {
+export async function exportToPdf(bpmnjs, {
+  modelName,
+  config,
+  includeSubProcesses = true,
+  markSubProcesses = false,
+  onProgress = () => {}
+}) {
   const pages = collectPages(bpmnjs, {
     modelName,
-    startRoot: bpmnjs.get('canvas').getRootElement()
+    startRoot: bpmnjs.get('canvas').getRootElement(),
+    includeSubProcesses
   });
 
+  if (!pages.length) {
+    throw new Error('Nothing to export – the diagram is empty.');
+  }
+
   const svgs = await collectSvgs(bpmnjs, pages, config);
+
+  const drilldownColors = markSubProcesses
+    ? getDrilldownColors(bpmnjs, config.drilldownMarker)
+    : null;
 
   const pdf = new PdfBuilder(config, {
     title: getTitle(pages[0], config.titleSeparator),
@@ -46,7 +64,11 @@ export async function exportToPdf(bpmnjs, { modelName, config, onProgress = () =
     let diagram = null;
 
     if (svgs[i]) {
-      const svg = prepareSvg(svgs[i], { textToCurves: config.textToCurves });
+      const svg = prepareSvg(svgs[i], {
+        textToCurves: config.textToCurves,
+        drilldowns: markSubProcesses ? page.drilldowns : [],
+        drilldownColors
+      });
 
       const size = getSvgSize(svg);
       const area = pdf.getDiagramArea(title);
@@ -106,6 +128,61 @@ export function getFitScale(size, area, config) {
 
 
 // helpers //////////
+
+const DEFAULT_DRILLDOWN_COLORS = {
+  background: '#0077cc',
+  foreground: '#ffffff'
+};
+
+/**
+ * Colors of the drill-down button as styled by the running Modeler
+ * (they differ between versions), unless set explicitly in the config.
+ */
+function getDrilldownColors(bpmnjs, configured = {}) {
+  const colors = { ...DEFAULT_DRILLDOWN_COLORS };
+
+  try {
+    const probe = document.createElement('button');
+
+    probe.className = 'bjs-drilldown';
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+
+    bpmnjs.get('canvas').getContainer().appendChild(probe);
+
+    const style = window.getComputedStyle(probe);
+
+    if (isOpaque(style.backgroundColor)) {
+      colors.background = style.backgroundColor;
+    }
+
+    if (isOpaque(style.fill)) {
+      colors.foreground = style.fill;
+    }
+
+    probe.remove();
+  } catch (error) {
+
+    // keep defaults
+  }
+
+  if (configured && configured.background) {
+    colors.background = configured.background;
+  }
+
+  if (configured && configured.foreground) {
+    colors.foreground = configured.foreground;
+  }
+
+  return colors;
+}
+
+function isOpaque(color) {
+  return !!color &&
+    color !== 'none' &&
+    color !== 'transparent' &&
+    !/^rgba\(.*,\s*0\)$/.test(color);
+}
 
 /**
  * @return {Promise<Array<string|null>>} SVG per page, null for empty planes

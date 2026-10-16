@@ -26,9 +26,29 @@ export const CONFIG = {
   //  false = real text in the embedded Arimo font (selectable/searchable)
   textToCurves: true,
 
+  // "Mark subprocesses with diagrams": the Modeler's blue drill-down arrow,
+  // drawn next to collapsed subprocesses whose diagram is not empty.
+  // null = same colors as the drill-down button in the running Modeler
+  drilldownMarker: {
+    background: null,   // e.g. '#0077cc'
+    foreground: null    // e.g. '#ffffff'
+  },
+
+  // initial choices in the export dialog (the last used ones are remembered)
+  defaultOptions: {
+    includeSubProcesses: true,
+    markSubProcesses: true
+  },
+
   texts: {
     buttonLabel: 'PDF',
-    buttonTitle: 'Export to PDF (open diagram + all collapsed subprocesses below it)',
+    buttonTitle: 'Export to PDF',
+    overlayTitle: 'Export as PDF',
+    scopeCurrent: 'Current diagram only',
+    scopeWithSubProcesses: 'Current diagram and subdiagrams',
+    markSubProcesses: 'Mark subprocesses with diagrams',
+    cancel: 'Cancel',
+    export: 'Export',
     dialogTitle: 'Export to PDF',
     emptySubProcess: '(subprocess contains no elements)',
     successTitle: 'PDF exported',

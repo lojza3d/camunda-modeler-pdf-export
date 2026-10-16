@@ -18,3 +18,25 @@
   from { opacity: 1; }
   to { opacity: 0.3; }
 }
+
+/* "Export as PDF" dialog above the status bar button
+   (Modeler's Overlay + Section + form/button styles, only spacing here) */
+
+.pdf-export-overlay .pdf-export-overlay__group {
+  display: grid;
+  grid-gap: 10px;
+  margin: 0 0 16px 0;
+}
+
+.pdf-export-overlay .pdf-export-overlay__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pdf-export-overlay .pdf-export-overlay__actions .btn {
+  width: auto;
+  min-width: 100px;
+  margin: 0;
+}

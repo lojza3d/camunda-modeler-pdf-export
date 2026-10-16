@@ -28,6 +28,10 @@ const IMPLICIT_ROOT_PREFIX = '__implicitroot';
  * @property {string[]} path    - title segments, e.g. [ 'model', 'subprocess "A"' ]
  * @property {Page|null} parent
  * @property {boolean} empty    - plane has no shapes
+ * @property {Bounds[]} drilldowns - collapsed subprocesses on this plane whose
+ *   own plane is not empty (where the Modeler shows the blue drill-down arrow)
+ *
+ * @typedef {{ x: number, y: number, width: number, height: number }} Bounds
  */
 
 /**
@@ -37,12 +41,17 @@ const IMPLICIT_ROOT_PREFIX = '__implicitroot';
  * @param {Object} [options.startRoot] - plane to start from (the one currently
  *   open in the editor). A subprocess plane exports only that subprocess and
  *   its descendants; the main diagram (or none) exports everything.
+ * @param {boolean} [options.includeSubProcesses=true] - false = only the
+ *   start plane (one page)
  *
  * @return {Page[]}
  */
-export function collectPages(bpmnjs, { modelName, startRoot }) {
+export function collectPages(bpmnjs, { modelName, startRoot, includeSubProcesses = true }) {
   const canvas = bpmnjs.get('canvas'),
         elementRegistry = bpmnjs.get('elementRegistry');
+
+  const isExportableRoot = root =>
+    !!root && !!root.businessObject && !root.id.startsWith(IMPLICIT_ROOT_PREFIX);
 
   let queue;
 
@@ -55,19 +64,26 @@ export function collectPages(bpmnjs, { modelName, startRoot }) {
       path,
       parent: null
     } ];
+  } else if (!includeSubProcesses && isExportableRoot(startRoot)) {
+    queue = [ {
+      root: startRoot,
+      level: 1,
+      path: [ modelName ],
+      parent: null
+    } ];
   } else {
-    const roots = canvas.getRootElements().filter(root =>
-      root.businessObject && !root.id.startsWith(IMPLICIT_ROOT_PREFIX)
-    );
-
-    queue = roots
-      .filter(root => !isSubProcessPlane(root, elementRegistry))
+    queue = canvas.getRootElements()
+      .filter(root => isExportableRoot(root) && !isSubProcessPlane(root, elementRegistry))
       .map(root => ({
         root,
         level: 1,
         path: [ modelName ],
         parent: null
       }));
+
+    if (!includeSubProcesses) {
+      queue = queue.slice(0, 1);
+    }
   }
 
   const pages = [];
@@ -86,16 +102,25 @@ export function collectPages(bpmnjs, { modelName, startRoot }) {
 
     pages.push(page);
 
-    getCollapsedSubProcesses(page.root, canvas, elementRegistry)
-      .sort(byPosition)
-      .forEach(shape => {
-        queue.push({
-          root: elementRegistry.get(shape.id + PLANE_SUFFIX),
-          level: page.level + 1,
-          path: [ ...page.path, describeSubProcess(shape.businessObject) ],
-          parent: page
-        });
+    const subProcesses = getCollapsedSubProcesses(page.root, canvas, elementRegistry)
+      .sort(byPosition);
+
+    page.drilldowns = subProcesses
+      .filter(shape => hasShapes(elementRegistry.get(shape.id + PLANE_SUFFIX), elementRegistry))
+      .map(({ x, y, width, height }) => ({ x, y, width, height }));
+
+    if (!includeSubProcesses) {
+      continue;
+    }
+
+    subProcesses.forEach(shape => {
+      queue.push({
+        root: elementRegistry.get(shape.id + PLANE_SUFFIX),
+        level: page.level + 1,
+        path: [ ...page.path, describeSubProcess(shape.businessObject) ],
+        parent: page
       });
+    });
   }
 
   return pages;

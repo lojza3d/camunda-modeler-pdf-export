@@ -37,14 +37,31 @@ const INHERITED_TEXT_PROPERTIES = [
 
 let fonts = null;
 
+// drill-down button of bpmn-js (DrilldownOverlayBehavior): 20x20 px,
+// 12 px left of the shape's right edge, 7 px below its bottom edge
+const DRILLDOWN_SIZE = 20;
+const DRILLDOWN_OFFSET_X = -12;
+const DRILLDOWN_OFFSET_Y = 7;
+const DRILLDOWN_RADIUS = 3;
+const DRILLDOWN_ICON_SCALE = DRILLDOWN_SIZE / 16;
+const DRILLDOWN_ICON = 'M4.81801948,3.50735931 L10.4996894,9.1896894 L10.5,4 L12,4 L12,12 L4,12 L4,10.5 ' +
+  'L9.6896894,10.4996894 L3.75735931,4.56801948 C3.46446609,4.27512627 3.46446609,3.80025253 3.75735931,3.50735931 ' +
+  'C4.05025253,3.21446609 4.52512627,3.21446609 4.81801948,3.50735931 Z';
+
+// padding bpmn-js adds around the exported diagram
+const EXPORT_PADDING = 10;
+
 /**
  * @param {string} svgString
  * @param {Object} options
  * @param {boolean} options.textToCurves
+ * @param {Array<{ x: number, y: number, width: number, height: number }>} [options.drilldowns]
+ *   collapsed subprocesses to mark with a drill-down arrow (diagram coordinates)
+ * @param {{ background: string, foreground: string }} [options.drilldownColors]
  *
  * @return {SVGSVGElement}
  */
-export function prepareSvg(svgString, { textToCurves }) {
+export function prepareSvg(svgString, { textToCurves, drilldowns = [], drilldownColors }) {
   const doc = new DOMParser().parseFromString(svgString, 'image/svg+xml');
   const svg = doc.documentElement;
 
@@ -53,6 +70,10 @@ export function prepareSvg(svgString, { textToCurves }) {
   }
 
   svg.querySelectorAll(HELPER_SELECTOR).forEach(element => element.remove());
+
+  if (drilldowns.length) {
+    addDrilldownMarkers(svg, drilldowns, drilldownColors);
+  }
 
   normalizeDashArrays(svg);
 
@@ -78,6 +99,93 @@ export function getSvgSize(svg) {
   }
 
   return { width, height };
+}
+
+
+// drill-down markers //////////
+
+/**
+ * Draws the Modeler's blue drill-down button next to each given subprocess
+ * (on top of everything, like the HTML overlay in the editor) and grows the
+ * exported area if a marker sticks out of it.
+ */
+function addDrilldownMarkers(svg, drilldowns, colors = {}) {
+  const {
+    background = '#0077cc',
+    foreground = '#ffffff'
+  } = colors;
+
+  const doc = svg.ownerDocument;
+
+  const layer = doc.createElementNS(SVG_NS, 'g');
+
+  layer.setAttribute('class', 'pdf-export-drilldowns');
+
+  const markerBounds = drilldowns.map(({ x, y, width, height }) => {
+    const markerX = x + width + DRILLDOWN_OFFSET_X,
+          markerY = y + height + DRILLDOWN_OFFSET_Y;
+
+    const group = doc.createElementNS(SVG_NS, 'g');
+
+    group.setAttribute('transform', `translate(${ markerX } ${ markerY })`);
+
+    const rect = doc.createElementNS(SVG_NS, 'rect');
+
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', String(DRILLDOWN_SIZE));
+    rect.setAttribute('height', String(DRILLDOWN_SIZE));
+    rect.setAttribute('rx', String(DRILLDOWN_RADIUS));
+    rect.setAttribute('ry', String(DRILLDOWN_RADIUS));
+    rect.setAttribute('style', `fill: ${ background }; stroke: none`);
+
+    const icon = doc.createElementNS(SVG_NS, 'path');
+
+    icon.setAttribute('d', DRILLDOWN_ICON);
+    icon.setAttribute('transform', `scale(${ DRILLDOWN_ICON_SCALE })`);
+    icon.setAttribute('style', `fill: ${ foreground }; fill-rule: evenodd; stroke: none`);
+
+    group.appendChild(rect);
+    group.appendChild(icon);
+    layer.appendChild(group);
+
+    return { x: markerX, y: markerY, width: DRILLDOWN_SIZE, height: DRILLDOWN_SIZE };
+  });
+
+  svg.appendChild(layer);
+
+  expandViewBox(svg, markerBounds);
+}
+
+/**
+ * Grows viewBox, width and height (1 user unit = 1 px, as exported by
+ * bpmn-js) so that all given bounds plus the export padding are visible.
+ */
+function expandViewBox(svg, boundsList) {
+  const viewBox = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(parseFloat);
+
+  if (viewBox.length !== 4 || viewBox.some(value => !isFinite(value))) {
+    return;
+  }
+
+  let [ minX, minY, width, height ] = viewBox;
+
+  let maxX = minX + width,
+      maxY = minY + height;
+
+  boundsList.forEach(bounds => {
+    minX = Math.min(minX, bounds.x - EXPORT_PADDING);
+    minY = Math.min(minY, bounds.y - EXPORT_PADDING);
+    maxX = Math.max(maxX, bounds.x + bounds.width + EXPORT_PADDING);
+    maxY = Math.max(maxY, bounds.y + bounds.height + EXPORT_PADDING);
+  });
+
+  width = maxX - minX;
+  height = maxY - minY;
+
+  svg.setAttribute('viewBox', `${ minX } ${ minY } ${ width } ${ height }`);
+  svg.setAttribute('width', String(width));
+  svg.setAttribute('height', String(height));
 }
 
 

@@ -1,14 +1,18 @@
 import React, { PureComponent } from 'camunda-modeler-plugin-helpers/vendor/react.js';
 import Fill from 'camunda-modeler-plugin-helpers/components/Fill.js';
 
+import ExportOverlay from './ExportOverlay';
 import { exportToPdf } from './export/exportPdf';
 import { getOpenSubProcessName } from './export/collectPages';
 import { CONFIG } from './config';
 
 const BPMN_TAB_TYPES = [ 'bpmn', 'cloud-bpmn' ];
 
+const OPTIONS_STORAGE_KEY = 'camunda-modeler-pdf-export.options';
+
 /**
  * Client extension: adds a "PDF" button to the status bar of BPMN tabs.
+ * Clicking it opens the "Export as PDF" dialog right above the button.
  *
  * Props are injected by the Modeler, see
  * https://github.com/camunda/camunda-modeler/blob/main/client/src/app/plugins/PluginsRoot.js
@@ -21,8 +25,12 @@ export default class PdfExportPlugin extends PureComponent {
     // tab.id -> bpmn-js modeler
     this.modelers = new Map();
 
+    this.anchorRef = React.createRef();
+
     this.state = {
       activeTab: this.getAppActiveTab(),
+      overlayOpen: false,
+      options: loadOptions(),
       progress: null
     };
 
@@ -55,7 +63,27 @@ export default class PdfExportPlugin extends PureComponent {
   };
 
   handleActiveTabChanged = ({ activeTab }) => {
-    this.setState({ activeTab });
+    this.setState({ activeTab, overlayOpen: false });
+  };
+
+  toggleOverlay = () => {
+    if (this.state.progress) {
+      return;
+    }
+
+    this.setState(({ overlayOpen }) => ({ overlayOpen: !overlayOpen }));
+  };
+
+  closeOverlay = () => {
+    this.setState({ overlayOpen: false });
+  };
+
+  handleOverlayExport = options => {
+    saveOptions(options);
+
+    this.setState({ overlayOpen: false, options });
+
+    this.handleExport(options);
   };
 
   getAppActiveTab() {
@@ -68,7 +96,10 @@ export default class PdfExportPlugin extends PureComponent {
     }
   }
 
-  handleExport = async () => {
+  /**
+   * @param {{ includeSubProcesses: boolean, markSubProcesses: boolean }} options
+   */
+  handleExport = async (options) => {
     const {
       displayNotification,
       log,
@@ -115,6 +146,8 @@ export default class PdfExportPlugin extends PureComponent {
       const { base64, pageCount } = await exportToPdf(modeler, {
         modelName,
         config: CONFIG,
+        includeSubProcesses: options.includeSubProcesses,
+        markSubProcesses: options.markSubProcesses,
         onProgress: (done, total) => this.setState({ progress: { done, total } })
       });
 
@@ -146,7 +179,12 @@ export default class PdfExportPlugin extends PureComponent {
   };
 
   render() {
-    const { activeTab, progress } = this.state;
+    const {
+      activeTab,
+      overlayOpen,
+      options,
+      progress
+    } = this.state;
 
     if (!activeTab || !BPMN_TAB_TYPES.includes(activeTab.type)) {
       return null;
@@ -154,21 +192,40 @@ export default class PdfExportPlugin extends PureComponent {
 
     const busy = !!progress;
 
+    const className = [
+      'btn',
+      'pdf-export-button',
+      overlayOpen ? 'btn--active' : '',
+      busy ? 'pdf-export-button--busy' : ''
+    ].filter(Boolean).join(' ');
+
     return (
-      <Fill slot="status-bar__file" group="7_pdf-export">
-        <button
-          type="button"
-          className={ 'btn pdf-export-button' + (busy ? ' pdf-export-button--busy' : '') }
-          title={ CONFIG.texts.buttonTitle }
-          onClick={ this.handleExport }
-          disabled={ busy }
-        >
-          <PdfIcon />
-          <span className="pdf-export-button__label">
-            { busy && progress.total ? `${ progress.done }/${ progress.total }` : CONFIG.texts.buttonLabel }
-          </span>
-        </button>
-      </Fill>
+      <React.Fragment>
+        <Fill slot="status-bar__file" group="7_pdf-export">
+          <button
+            type="button"
+            ref={ this.anchorRef }
+            className={ className }
+            title={ CONFIG.texts.buttonTitle }
+            onClick={ this.toggleOverlay }
+            disabled={ busy }
+          >
+            <PdfIcon />
+            <span className="pdf-export-button__label">
+              { busy && progress.total ? `${ progress.done }/${ progress.total }` : CONFIG.texts.buttonLabel }
+            </span>
+          </button>
+        </Fill>
+
+        { overlayOpen && this.anchorRef.current && (
+          <ExportOverlay
+            anchor={ this.anchorRef.current }
+            initialOptions={ options }
+            onExport={ this.handleOverlayExport }
+            onClose={ this.closeOverlay }
+          />
+        ) }
+      </React.Fragment>
     );
   }
 }
@@ -183,6 +240,39 @@ function getModelName(tab) {
   const name = (tab.file && tab.file.name) || tab.name || 'diagram';
 
   return name.replace(/\.(bpmn|xml)$/i, '');
+}
+
+/**
+ * Last used dialog choices (per user, survive restarts).
+ */
+function loadOptions() {
+  const defaults = { ...CONFIG.defaultOptions };
+
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(OPTIONS_STORAGE_KEY) || 'null');
+
+    if (stored && typeof stored === 'object') {
+      [ 'includeSubProcesses', 'markSubProcesses' ].forEach(key => {
+        if (typeof stored[key] === 'boolean') {
+          defaults[key] = stored[key];
+        }
+      });
+    }
+  } catch (error) {
+
+    // storage not available -> defaults
+  }
+
+  return defaults;
+}
+
+function saveOptions(options) {
+  try {
+    window.localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(options));
+  } catch (error) {
+
+    // storage not available -> not remembered
+  }
 }
 
 function sanitizeFileName(name) {
