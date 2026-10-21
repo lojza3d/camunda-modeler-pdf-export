@@ -86,6 +86,105 @@ export function prepareSvg(svgString, { textToCurves, drilldowns = [], drilldown
   return svg;
 }
 
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+const IMAGE_FETCH_TIMEOUT = 5000;
+
+const IMAGE_TYPES_BY_EXTENSION = {
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp'
+};
+
+/**
+ * Images referenced by URL (e.g. element template icons given as https://…)
+ * are fetched here and embedded as data URIs, so that svg2pdf never touches
+ * the network itself. Images that cannot be loaded (offline, 404, timeout)
+ * are left out instead of failing or blocking the whole export.
+ *
+ * @param {SVGSVGElement} svg
+ * @param {Map<string, Promise<string|null>>} [cache] - shared across pages
+ *
+ * @return {Promise<string[]>} URLs that could not be embedded
+ */
+export async function inlineExternalImages(svg, cache = new Map()) {
+  const images = Array.from(svg.getElementsByTagName('image'));
+
+  const failed = [];
+
+  await Promise.all(images.map(async image => {
+    const href = image.getAttribute('href') || image.getAttributeNS(XLINK_NS, 'href') || '';
+
+    if (/^data:/i.test(href.trim())) {
+      return;
+    }
+
+    if (!cache.has(href)) {
+      cache.set(href, fetchAsDataUrl(href));
+    }
+
+    const dataUrl = await cache.get(href);
+
+    if (dataUrl) {
+      image.removeAttributeNS(XLINK_NS, 'href');
+      image.setAttribute('href', dataUrl);
+    } else {
+      failed.push(href);
+      image.remove();
+    }
+  }));
+
+  return failed;
+}
+
+async function fetchAsDataUrl(url) {
+  if (!/^https?:\/\//i.test(url)) {
+    return null;
+  }
+
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeout = controller && setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT);
+
+  try {
+    const response = await fetch(url, controller ? { signal: controller.signal } : {});
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const blob = await response.blob();
+
+    const extension = (url.split(/[?#]/)[0].match(/\.([a-z0-9]+)$/i) || [])[1];
+    const type = /^image\//.test(blob.type)
+      ? blob.type
+      : IMAGE_TYPES_BY_EXTENSION[(extension || '').toLowerCase()];
+
+    if (!type) {
+      return null;
+    }
+
+    return await blobToDataUrl(blob.type === type ? blob : new Blob([ blob ], { type }));
+  } catch (error) {
+    return null;
+  } finally {
+    timeout && clearTimeout(timeout);
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * @param {SVGSVGElement} svg
  * @return {{ width: number, height: number }} in diagram px

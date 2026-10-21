@@ -1,5 +1,5 @@
 import { collectPages, getTitle } from './collectPages';
-import { prepareSvg, getSvgSize, PX_TO_MM } from './svgPrepare';
+import { prepareSvg, inlineExternalImages, getSvgSize, PX_TO_MM } from './svgPrepare';
 import { PdfBuilder } from './pdf';
 
 /**
@@ -22,7 +22,7 @@ import { PdfBuilder } from './pdf';
  *   arrow next to collapsed subprocesses that contain a diagram
  * @param {(done: number, total: number) => void} [options.onProgress]
  *
- * @return {Promise<{ base64: string, pageCount: number, titles: string[] }>}
+ * @return {Promise<{ base64: string, pageCount: number, titles: string[], missingImages: string[] }>}
  */
 export async function exportToPdf(bpmnjs, {
   modelName,
@@ -55,6 +55,10 @@ export async function exportToPdf(bpmnjs, {
   const outlineNodes = new Map();
   const titles = [];
 
+  // images referenced by URL, shared across pages
+  const imageCache = new Map();
+  const missingImages = new Set();
+
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     const title = getTitle(page, config.titleSeparator);
@@ -69,6 +73,8 @@ export async function exportToPdf(bpmnjs, {
         drilldowns: markSubProcesses ? page.drilldowns : [],
         drilldownColors
       });
+
+      (await inlineExternalImages(svg, imageCache)).forEach(url => missingImages.add(url));
 
       const size = getSvgSize(svg);
       const area = pdf.getDiagramArea(title);
@@ -104,7 +110,8 @@ export async function exportToPdf(bpmnjs, {
   return {
     base64: pdf.toBase64(),
     pageCount: pages.length,
-    titles
+    titles,
+    missingImages: Array.from(missingImages)
   };
 }
 

@@ -54,6 +54,7 @@ export const CONFIG = {
     successTitle: 'PDF exported',
     errorTitle: 'PDF export failed',
     pageCount: count => `${ count } ${ count === 1 ? 'page' : 'pages' }`,
+    missingImages: count => `${ count } ${ count === 1 ? 'image' : 'images' } referenced by URL could not be loaded and ${ count === 1 ? 'was' : 'were' } left out (offline?).`,
     noModeler: 'No BPMN modeler found for the active tab. Close and reopen the file (or open it after the plugin has loaded).',
     notVisible: 'The diagram is not visible – switch from the XML view back to the diagram.'
   }

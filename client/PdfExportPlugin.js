@@ -143,7 +143,7 @@ export default class PdfExportPlugin extends PureComponent {
     this.setState({ progress: { done: 0, total: 0 } });
 
     try {
-      const { base64, pageCount } = await exportToPdf(modeler, {
+      const { base64, pageCount, missingImages } = await exportToPdf(modeler, {
         modelName,
         config: CONFIG,
         includeSubProcesses: options.includeSubProcesses,
@@ -156,21 +156,38 @@ export default class PdfExportPlugin extends PureComponent {
         fileType: 'pdf'
       });
 
-      displayNotification({
-        type: 'success',
-        title: CONFIG.texts.successTitle,
-        content: `${ CONFIG.texts.pageCount(pageCount) } → ${ (written && written.path) || filePath }`,
-        duration: 6000
-      });
+      const summary = `${ CONFIG.texts.pageCount(pageCount) } → ${ (written && written.path) || filePath }`;
+
+      if (missingImages.length) {
+        missingImages.forEach(url => {
+          log({ category: 'pdf-export', message: `PDF export: image not available, left out: ${ url }` });
+        });
+
+        displayNotification({
+          type: 'warning',
+          title: CONFIG.texts.successTitle,
+          content: `${ summary }. ${ CONFIG.texts.missingImages(missingImages.length) }`,
+          duration: 10000
+        });
+      } else {
+        displayNotification({
+          type: 'success',
+          title: CONFIG.texts.successTitle,
+          content: summary,
+          duration: 6000
+        });
+      }
     } catch (error) {
       console.error('[pdf-export]', error);
 
-      log({ category: 'pdf-export', message: `PDF export failed: ${ error.message }` });
+      const message = (error && error.message) || String(error);
+
+      log({ category: 'pdf-export', message: `PDF export failed: ${ message }` });
 
       displayNotification({
         type: 'error',
         title: CONFIG.texts.errorTitle,
-        content: error.message,
+        content: message,
         duration: 8000
       });
     } finally {

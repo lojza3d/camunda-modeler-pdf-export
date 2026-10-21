@@ -1,6 +1,6 @@
 {
   "name": "camunda-modeler-pdf-export",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Camunda Desktop Modeler plugin: exports the open BPMN diagram incl. all collapsed subprocesses (any depth) to a landscape A4 PDF.",
   "main": "index.js",
   "private": true,

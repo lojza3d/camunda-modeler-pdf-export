@@ -93,6 +93,12 @@ All settings live in `client/config.js` (page format, margins, title size, `shri
   (SVG → native PDF vector paths); titles, footer and bookmarks use an embedded subset of Arimo
   (Latin incl. Czech, Greek, Cyrillic, arrows). Only embedded fonts are referenced.
 
+The plugin is self-contained and works offline: all libraries (jsPDF, svg2pdf.js, opentype.js) and the
+Arimo font are bundled in `dist/client.js`, React and the dialog components come from the Modeler itself.
+The only network access happens for images that a diagram references by URL (e.g. element template icons
+given as `https://…` instead of a data URI): they are fetched once per export (5 s timeout) and embedded;
+if that fails (offline, 404), the image is left out and the export finishes with a warning.
+
 Limitations: PDF has no native SVG, so the SVG is translated into PDF drawing operators.
 Raster images in the diagram (e.g. PNG icons of element templates) stay raster; SVG icons stay vector.
 
